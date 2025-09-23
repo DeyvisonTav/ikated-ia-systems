@@ -34,7 +34,7 @@ export class SeederService {
         email: faker.internet.email(),
         cpf: this.generateCPF(),
         rg: faker.string.numeric(9),
-        phone: faker.phone.number(),
+        phone: `(${faker.string.numeric(2)}) ${faker.string.numeric(1)}.${faker.string.numeric(4)}-${faker.string.numeric(4)}`,
         birthDate: faker.date.birthdate({ min: 18, max: 80, mode: 'age' }),
         address: {
           cep: faker.location.zipCode('#####-###'),
