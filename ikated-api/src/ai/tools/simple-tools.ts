@@ -2,7 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { DrizzleDB } from '../../database/types';
 import { users, conversations, messages, documents, forms } from '../../database/schema';
-import { count, desc } from 'drizzle-orm';
+import { count, desc, sql } from 'drizzle-orm';
 import { RedisService } from '../../redis/redis.service';
 import * as csvWriter from 'csv-writer';
 import * as fs from 'fs';
@@ -14,6 +14,7 @@ export function createSimpleTools(db: DrizzleDB, redisService: RedisService) {
       description: 'Obtém estatísticas gerais do sistema Ikated',
       inputSchema: z.object({}),
       execute: async () => {
+        console.log('📊 Tool getSystemStats executando...');
         try {
           const [usersCount] = await db.select({ count: count() }).from(users);
           const [conversationsCount] = await db.select({ count: count() }).from(conversations);
@@ -23,7 +24,7 @@ export function createSimpleTools(db: DrizzleDB, redisService: RedisService) {
 
           return {
             success: true,
-            stats: {
+            data: {
               totalUsers: usersCount?.count || 0,
               totalConversations: conversationsCount?.count || 0,
               totalMessages: messagesCount?.count || 0,
@@ -39,10 +40,11 @@ export function createSimpleTools(db: DrizzleDB, redisService: RedisService) {
 📋 **Formulários**: ${formsCount?.count || 0}`,
           };
         } catch (error) {
+          console.error('❌ Erro na tool getSystemStats:', error);
           return {
             success: false,
-            message: 'Erro ao obter estatísticas do sistema',
             error: error.message,
+            message: 'Erro ao obter estatísticas do sistema'
           };
         }
       },
@@ -72,8 +74,8 @@ export function createSimpleTools(db: DrizzleDB, redisService: RedisService) {
             message: `👥 **Usuários Recentes** (${recentUsers.length} encontrados)
 
 ${recentUsers.map(user =>
-  `• **${user.name}** (${user.email}) - ${user.createdAt?.toLocaleDateString('pt-BR')}`
-).join('\n')}`,
+              `• **${user.name}** (${user.email}) - ${user.createdAt?.toLocaleDateString('pt-BR')}`
+            ).join('\n')}`,
           };
         } catch (error) {
           return {
@@ -92,7 +94,9 @@ ${recentUsers.map(user =>
       }),
       execute: async ({ includeAddress = true }) => {
         try {
+          console.log('📊 Tool generateUsersReport executando...');
           const allUsers = await db.select().from(users);
+          console.log(`👥 Encontrados ${allUsers.length} usuários`);
 
           const exportPath = path.join(process.cwd(), 'exports');
           if (!fs.existsSync(exportPath)) {
@@ -163,7 +167,9 @@ ${recentUsers.map(user =>
             recordCount: records.length,
           }, 3600);
 
-          return {
+          console.log(`💾 Arquivo salvo no Redis com chave: ${downloadKey}`);
+
+          const response = {
             success: true,
             message: `📊 **Relatório de Usuários Gerado!**
 
@@ -179,7 +185,11 @@ O arquivo estará disponível por 1 hora.`,
             recordCount: records.length,
             downloadUrl: `/api/download/${downloadKey}`,
           };
+
+          console.log('✅ Tool generateUsersReport concluída com sucesso');
+          return response;
         } catch (error) {
+          console.error('❌ Erro na tool generateUsersReport:', error);
           return {
             success: false,
             message: 'Erro ao gerar relatório de usuários',
@@ -374,6 +384,141 @@ O arquivo estará disponível por 1 hora.`,
           return {
             success: false,
             message: 'Erro ao gerar relatório de documentos',
+            error: error.message,
+          };
+        }
+      },
+    }),
+
+    generateGeographicReport: tool({
+      description: 'Gera relatório de distribuição geográfica dos usuários brasileiros',
+      inputSchema: z.object({
+        groupBy: z.enum(['estado', 'cidade']).optional().describe('Agrupar por estado ou cidade (padrão: estado)'),
+      }),
+      execute: async ({ groupBy = 'estado' }) => {
+        console.log('🌍 Tool generateGeographicReport executando...', { groupBy });
+        try {
+          let query;
+          if (groupBy === 'estado') {
+            query = db
+              .select({
+                estado: users.address,
+                count: count()
+              })
+              .from(users)
+              .where(sql`${users.address} IS NOT NULL`)
+              .groupBy(users.address);
+          } else {
+            query = db
+              .select({
+                cidade: users.address,
+                estado: users.address,
+                count: count()
+              })
+              .from(users)
+              .where(sql`${users.address} IS NOT NULL`)
+              .groupBy(users.address);
+          }
+
+          console.log('📊 Executando query do banco...');
+          const results = await query;
+          console.log('✅ Query executada, resultados:', results.length);
+
+          // Processa os dados do JSON address
+          const processedData = results.map(row => {
+            const address = row.estado || row.cidade as any;
+            if (groupBy === 'estado') {
+              return {
+                estado: address?.estado || 'N/A',
+                total_usuarios: row.count || 0
+              };
+            } else {
+              return {
+                cidade: address?.cidade || 'N/A',
+                estado: address?.estado || 'N/A',
+                total_usuarios: row.count || 0
+              };
+            }
+          });
+
+          // Agrupa por estado/cidade
+          const grouped = processedData.reduce((acc, item) => {
+            const key = groupBy === 'estado' ? item.estado : `${item.cidade}-${item.estado}`;
+            if (!acc[key]) {
+              acc[key] = groupBy === 'estado' ?
+                { estado: item.estado, total_usuarios: 0 } :
+                { cidade: item.cidade, estado: item.estado, total_usuarios: 0 };
+            }
+            acc[key].total_usuarios += item.total_usuarios;
+            return acc;
+          }, {} as any);
+
+          const finalData = Object.values(grouped).sort((a: any, b: any) => b.total_usuarios - a.total_usuarios);
+
+          const exportPath = path.join(process.cwd(), 'exports');
+          if (!fs.existsSync(exportPath)) {
+            fs.mkdirSync(exportPath, { recursive: true });
+          }
+
+          const csvFilename = `distribuicao-geografica-${groupBy}-${Date.now()}.csv`;
+          const filePath = path.join(exportPath, csvFilename);
+
+          const headers = groupBy === 'estado' ? [
+            { id: 'estado', title: 'Estado' },
+            { id: 'total_usuarios', title: 'Total de Usuários' }
+          ] : [
+            { id: 'cidade', title: 'Cidade' },
+            { id: 'estado', title: 'Estado' },
+            { id: 'total_usuarios', title: 'Total de Usuários' }
+          ];
+
+          const writer = csvWriter.createObjectCsvWriter({
+            path: filePath,
+            header: headers,
+          });
+
+          await writer.writeRecords(finalData as any);
+
+          const downloadKey = `download:${path.basename(filePath, '.csv')}`;
+          console.log('💾 Tentando salvar no Redis:', { downloadKey, filePath, csvFilename });
+          await redisService.setJson(downloadKey, {
+            filePath,
+            filename: csvFilename,
+            type: 'csv',
+            generatedAt: new Date().toISOString(),
+            recordCount: finalData.length,
+          }, 3600);
+          console.log('✅ Dados salvos no Redis com sucesso!');
+
+          return {
+            success: true,
+            message: `🗺️ **Distribuição Geográfica - ${groupBy === 'estado' ? 'Por Estado' : 'Por Cidade'}**
+
+✅ **${finalData.length} registros** exportados para CSV
+📁 **Arquivo**: ${csvFilename}
+⏰ **Gerado em**: ${new Date().toLocaleString('pt-BR')}
+
+📊 **Top 5 ${groupBy === 'estado' ? 'Estados' : 'Cidades'}**:
+${finalData.slice(0, 5).map((item: any, index) =>
+              groupBy === 'estado' ?
+                `${index + 1}. **${item.estado}**: ${item.total_usuarios} usuários` :
+                `${index + 1}. **${item.cidade}/${item.estado}**: ${item.total_usuarios} usuários`
+            ).join('\n')}
+
+🔗 **Download**: [Clique aqui para baixar](/api/download/${downloadKey})
+
+O arquivo estará disponível por 1 hora.`,
+            downloadKey,
+            filename: csvFilename,
+            recordCount: finalData.length,
+            downloadUrl: `/api/download/${downloadKey}`,
+            data: finalData.slice(0, 10) // Primeiros 10 para preview
+          };
+        } catch (error) {
+          console.error('❌ Erro na tool generateGeographicReport:', error);
+          return {
+            success: false,
+            message: 'Erro ao gerar relatório geográfico',
             error: error.message,
           };
         }

@@ -12,19 +12,13 @@ interface Message {
 
 interface ChatWidgetProps {
   onExpand?: () => void
+  messages?: Message[]
+  onMessagesUpdate?: (messages: Message[]) => void
 }
 
-export function ChatWidget({ onExpand }: ChatWidgetProps) {
+export function ChatWidget({ onExpand, messages = [], onMessagesUpdate }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Olá! Como posso ajudá-lo hoje?',
-      timestamp: new Date()
-    }
-  ])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -45,7 +39,8 @@ export function ChatWidget({ onExpand }: ChatWidgetProps) {
       timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, userMessage])
+    const newMessages = [...messages, userMessage]
+    onMessagesUpdate?.(newMessages)
     setInputMessage('')
     setIsLoading(true)
 
@@ -76,7 +71,8 @@ export function ChatWidget({ onExpand }: ChatWidgetProps) {
         timestamp: new Date()
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      const finalMessages = [...newMessages, assistantMessage]
+      onMessagesUpdate?.(finalMessages)
       setIsLoading(false)
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
@@ -88,7 +84,8 @@ export function ChatWidget({ onExpand }: ChatWidgetProps) {
         content: 'Backend Nest.js não está disponível. Configure e inicie o servidor backend para usar o chat com IA.',
         timestamp: new Date()
       }
-      setMessages(prev => [...prev, fallbackMessage])
+      const finalMessages = [...newMessages, fallbackMessage]
+      onMessagesUpdate?.(finalMessages)
       setIsLoading(false)
     }
   }

@@ -5,12 +5,14 @@ import { DrizzleDB } from '../database/types';
 import { conversations, messages, NewConversation, NewMessage } from '../database/schema';
 import { ChatRequestDto, ChatResponseDto } from '../common/dto/chat.dto';
 import { eq } from 'drizzle-orm';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class ChatService {
   constructor(
     private readonly openaiService: OpenAIService,
     @Inject(DATABASE_CONNECTION) private readonly db: DrizzleDB,
+    private readonly redisService: RedisService,
   ) {}
 
   async generateResponse(chatRequest: ChatRequestDto): Promise<ChatResponseDto> {
@@ -43,18 +45,42 @@ export class ChatService {
         }
       }
 
-      const response = await this.openaiService.generateResponse(chatRequest.messages);
+      // Timeout de 30 segundos para evitar travamentos
+      const response = await Promise.race([
+        this.openaiService.generateResponse(chatRequest.messages),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error('Chat timeout - operação muito lenta')), 30000)
+        )
+      ]);
+
+      let finalResponse = response;
+
+      // Verificar se é comando de CSV e adicionar link se necessário
+      const lastUserMessage = chatRequest.messages[chatRequest.messages.length - 1]?.content?.toLowerCase() || '';
+      if (this.isCsvCommand(lastUserMessage) && (!response || response.trim().length < 50)) {
+        console.log('🔗 Comando CSV detectado, buscando link mais recente...');
+        const downloadLink = await this.getLatestDownloadLink();
+        if (downloadLink) {
+          finalResponse = `📊 **Relatório gerado com sucesso!**
+
+🔗 **Download disponível:** ${downloadLink}
+
+⏰ **Importante:** O link expira em 1 hora e o arquivo será automaticamente deletado após o download.
+
+${response ? `\n${response}` : ''}`.trim();
+        }
+      }
 
       const assistantMessage: NewMessage = {
         conversationId,
         role: 'assistant',
-        content: response,
+        content: finalResponse,
       };
 
       await this.db.insert(messages).values(assistantMessage);
 
       return {
-        message: response,
+        message: finalResponse,
         timestamp: new Date().toISOString(),
         conversationId,
       };
@@ -122,5 +148,45 @@ export class ChatService {
 
     const words = firstMessage.split(' ').slice(0, 5);
     return words.join(' ') + (firstMessage.split(' ').length > 5 ? '...' : '');
+  }
+
+  private isCsvCommand(message: string): boolean {
+    const csvKeywords = [
+      'csv', 'relatório', 'relatorio', 'export', 'exportar',
+      'planilha', 'usuarios', 'usuários', 'conversas',
+      'documentos', 'geografica', 'geográfica', 'distribuição',
+      'distribuicao', 'gerar', 'gere'
+    ];
+
+    return csvKeywords.some(keyword => message.includes(keyword));
+  }
+
+  private async getLatestDownloadLink(): Promise<string | null> {
+    try {
+      // Buscar todas as chaves de download no Redis
+      const keys = await this.redisService.keys('download:*');
+      if (keys.length === 0) return null;
+
+      // Ordenar por timestamp (mais recente primeiro)
+      const keysWithTime = await Promise.all(
+        keys.map(async (key) => {
+          const ttl = await this.redisService.ttl(key);
+          return { key, ttl };
+        })
+      );
+
+      // Pegar a chave mais recente (menor TTL = mais nova)
+      const latestKey = keysWithTime
+        .filter(item => item.ttl > 0)
+        .sort((a, b) => b.ttl - a.ttl)[0];
+
+      if (!latestKey) return null;
+
+      const downloadId = latestKey.key.replace('download:', '');
+      return `http://localhost:3333/api/download/${downloadId}`;
+    } catch (error) {
+      console.error('❌ Erro ao buscar link de download:', error);
+      return null;
+    }
   }
 }

@@ -16,20 +16,21 @@ interface ChatExpandedProps {
   onMinimize?: () => void
   isPopup?: boolean
   onOpenInPopup?: () => void
+  messages?: Message[]
+  onMessagesUpdate?: (messages: Message[]) => void
   initialMessages?: Message[]
 }
 
-export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onOpenInPopup, initialMessages }: ChatExpandedProps) {
-  const [messages, setMessages] = useState<Message[]>(
-    initialMessages || [
-      {
-        id: '1',
-        role: 'assistant',
-        content: 'Bem-vindo ao chat expandido da Ikated! Aqui você pode ter conversas mais longas e detalhadas sobre integração de IA, transformação digital e soluções tecnológicas.',
-        timestamp: new Date()
-      }
-    ]
-  )
+export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onOpenInPopup, messages = [], onMessagesUpdate, initialMessages }: ChatExpandedProps) {
+  // Usar mensagens compartilhadas ou fallback para mensagens iniciais
+  const currentMessages = messages.length > 0 ? messages : (initialMessages || [
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Bem-vindo ao chat expandido da Ikated! Aqui você pode ter conversas mais longas e detalhadas sobre integração de IA, transformação digital e soluções tecnológicas.',
+      timestamp: new Date()
+    }
+  ])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -38,7 +39,7 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  useEffect(scrollToBottom, [messages])
+  useEffect(scrollToBottom, [currentMessages])
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
@@ -50,7 +51,8 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
       timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, userMessage])
+    const newMessages = [...currentMessages, userMessage]
+    onMessagesUpdate?.(newMessages)
     setInputMessage('')
     setIsLoading(true)
 
@@ -62,7 +64,7 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map(msg => ({
+          messages: newMessages.map(msg => ({
             role: msg.role,
             content: msg.content
           }))
@@ -82,7 +84,9 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
         timestamp: new Date()
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      const finalMessages = [...newMessages, assistantMessage]
+      onMessagesUpdate?.(finalMessages)
+      setIsLoading(false)
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
 
@@ -101,13 +105,10 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
           content: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
           timestamp: new Date()
         }
-        setMessages(prev => [...prev, assistantMessage])
+        const finalMessages = [...newMessages, assistantMessage]
+        onMessagesUpdate?.(finalMessages)
         setIsLoading(false)
       }, 1500)
-    } finally {
-      if (!error) {
-        setIsLoading(false)
-      }
     }
   }
 
@@ -119,7 +120,7 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
   }
 
   const exportChat = () => {
-    const chatText = messages.map(msg =>
+    const chatText = currentMessages.map(msg =>
       `[${msg.timestamp.toLocaleString('pt-BR')}] ${msg.role === 'user' ? 'Você' : 'Assistente'}: ${msg.content}`
     ).join('\n\n')
 
@@ -206,7 +207,7 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6" style={{ height: 'calc(100vh - 240px)' }}>
-            {messages.map((message) => (
+            {currentMessages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -313,12 +314,12 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
               <div className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center justify-between">
                   <span>Mensagens:</span>
-                  <span className="text-foreground">{messages.length}</span>
+                  <span className="text-foreground">{currentMessages.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Iniciado em:</span>
                   <span className="text-foreground">
-                    {messages[0]?.timestamp.toLocaleDateString('pt-BR')}
+                    {currentMessages[0]?.timestamp.toLocaleDateString('pt-BR')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -365,7 +366,7 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                 <span className="flex items-center space-x-1">
                   <span>Mensagens:</span>
-                  <span className="text-foreground font-medium">{messages.length}</span>
+                  <span className="text-foreground font-medium">{currentMessages.length}</span>
                 </span>
                 <span className="flex items-center space-x-1">
                   <span className="w-2 h-2 bg-green-500 rounded-full"></span>

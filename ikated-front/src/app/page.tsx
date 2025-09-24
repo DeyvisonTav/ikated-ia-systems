@@ -14,11 +14,23 @@ import { useSearchParams } from 'next/navigation'
 export default function Home() {
   const [activeDemo, setActiveDemo] = useState<'form' | 'chat' | null>(null)
   const [isChatExpanded, setIsChatExpanded] = useState(false)
-  const [messages, setMessages] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Olá! Como posso ajudá-lo hoje?',
+      timestamp: new Date()
+    }
+  ])
 
   const searchParams = useSearchParams()
   const isPopup = searchParams.get('chat') === 'popup'
   const { openPopupChat, addMessageHandler } = usePopupChat()
+
+  // Função para atualizar mensagens compartilhadas
+  const updateSharedMessages = (newMessages: any[]) => {
+    setMessages(newMessages)
+  }
 
   // Se for popup, renderizar componente de popup
   if (isPopup) {
@@ -198,14 +210,19 @@ export default function Home() {
       </main>
 
       {/* Chat Widget - sempre visível */}
-      <ChatWidget onExpand={() => setIsChatExpanded(true)} />
+      <ChatWidget
+        messages={messages}
+        onMessagesUpdate={updateSharedMessages}
+        onExpand={() => setIsChatExpanded(true)}
+      />
 
       {/* Chat Expandido - modal */}
       <ChatExpanded
         isOpen={isChatExpanded}
         onClose={() => setIsChatExpanded(false)}
         onOpenInPopup={handleOpenInPopup}
-        initialMessages={messages}
+        messages={messages}
+        onMessagesUpdate={updateSharedMessages}
       />
     </div>
   )

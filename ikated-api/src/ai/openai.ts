@@ -16,7 +16,6 @@ export class OpenAIService implements AIProvider {
     @Inject(DATABASE_CONNECTION) private readonly db: DrizzleDB,
     private readonly redisService: RedisService,
   ) {
-    // Inicializa as tools simplificadas
     this.tools = createSimpleTools(this.db, this.redisService);
   }
 
@@ -35,6 +34,7 @@ export class OpenAIService implements AIProvider {
 - generateUsersReport: Exporta relatório completo de usuários em CSV
 - generateConversationsReport: Exporta relatório de conversas em CSV
 - generateDocumentsReport: Exporta relatório de documentos processados em CSV
+- generateGeographicReport: Exporta distribuição geográfica dos usuários por estado/cidade
 
 ✨ **INSTRUÇÕES IMPORTANTES**:
 1. **Para estatísticas rápidas**: Use getSystemStats primeiro
@@ -48,6 +48,7 @@ export class OpenAIService implements AIProvider {
 - "Gere um relatório de usuários" → generateUsersReport
 - "Quero exportar todas as conversas" → generateConversationsReport
 - "Preciso de um CSV dos documentos" → generateDocumentsReport
+- "Distribuição geográfica dos usuários" → generateGeographicReport
 
 💡 **DICAS**:
 - Os CSVs ficam disponíveis por 1 hora para download
@@ -56,20 +57,38 @@ export class OpenAIService implements AIProvider {
 - Sempre explique o contexto dos dados apresentados`
     };
 
-    const { text } = await generateText({
-      model: this.model,
-      messages: [
-        systemPrompt,
-        ...messages.map(msg => ({
-          role: msg.role as 'user' | 'assistant' | 'system',
-          content: msg.content,
-        }))
-      ],
-      tools: this.tools,
-      temperature: 0.7,
-    });
+    try {
+      console.log('🤖 Iniciando generateText com tools...');
 
-    return text;
+      const result = await generateText({
+        model: this.model,
+        messages: [
+          systemPrompt,
+          ...messages.map(msg => ({
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content,
+          }))
+        ],
+        tools: this.tools,
+        temperature: 0.7,
+        maxRetries: 2
+      });
+
+      console.log('✅ Resultado do generateText:', {
+        text: result.text,
+        toolCalls: result.toolCalls?.length || 0,
+        toolResults: result.toolResults?.length || 0,
+        toolResults_details: result.toolResults?.map(tr => ({
+          toolCallId: tr.toolCallId,
+          result: JSON.stringify(tr)
+        }))
+      });
+
+      return result.text;
+    } catch (error) {
+      console.error('❌ Erro no generateText:', error);
+      throw error;
+    }
   }
 
   async *generateResponseStream(messages: Array<{ role: string; content: string }>): AsyncIterable<string> {

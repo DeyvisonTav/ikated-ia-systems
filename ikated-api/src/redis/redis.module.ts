@@ -17,9 +17,9 @@ export const REDIS_CONNECTION = 'REDIS_CONNECTION';
           const redis = new Redis({
             host: configService.get('REDIS_HOST', 'localhost'),
             port: configService.get('REDIS_PORT', 6379),
-            enableOfflineQueue: false,
             maxRetriesPerRequest: 3,
-            lazyConnect: true, // Conecta apenas quando necessário
+            connectTimeout: 10000,
+            lazyConnect: false,
           });
 
           redis.on('connect', () => {

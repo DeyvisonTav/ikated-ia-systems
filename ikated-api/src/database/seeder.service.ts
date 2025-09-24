@@ -29,21 +29,35 @@ export class SeederService {
     const userIds: string[] = [];
 
     for (let i = 0; i < count; i++) {
+      // Gera datas de cadastro distribuídas pelos últimos 12 meses
+      const createdAt = faker.date.recent({ days: 365 });
+
+      // Gera idades com distribuição realista
+      const ageGroups = [
+        { min: 18, max: 25, weight: 20 }, // Jovens
+        { min: 26, max: 35, weight: 30 }, // Adultos jovens (maior volume)
+        { min: 36, max: 45, weight: 25 }, // Adultos
+        { min: 46, max: 60, weight: 20 }, // Adultos maduros
+        { min: 61, max: 80, weight: 5 },  // Idosos
+      ];
+
+      const selectedAgeGroup = faker.helpers.arrayElement(ageGroups);
+      const birthDate = faker.date.birthdate({
+        min: selectedAgeGroup.min,
+        max: selectedAgeGroup.max,
+        mode: 'age'
+      });
+
       const newUser: NewUser = {
         name: faker.person.fullName(),
         email: faker.internet.email(),
         cpf: this.generateCPF(),
         rg: faker.string.numeric(9),
         phone: `(${faker.string.numeric(2)}) ${faker.string.numeric(1)}.${faker.string.numeric(4)}-${faker.string.numeric(4)}`,
-        birthDate: faker.date.birthdate({ min: 18, max: 80, mode: 'age' }),
-        address: {
-          cep: faker.location.zipCode('#####-###'),
-          endereco: faker.location.streetAddress(),
-          numero: faker.string.numeric({ length: { min: 1, max: 4 } }),
-          bairro: faker.location.direction(),
-          cidade: faker.location.city(),
-          estado: faker.location.state({ abbreviated: true }),
-        },
+        birthDate,
+        address: this.generateRealisticAddress(),
+        createdAt,
+        updatedAt: createdAt,
       };
 
       const [user] = await this.db.insert(users).values(newUser).returning();
@@ -57,13 +71,28 @@ export class SeederService {
     const conversationIds: string[] = [];
 
     for (let i = 0; i < count; i++) {
+      // Conversas distribuídas pelos últimos 6 meses
+      const createdAt = faker.date.recent({ days: 180 });
+
       const newConversation: NewConversation = {
         userId: faker.helpers.arrayElement(userIds),
-        title: faker.lorem.sentence(3),
+        title: faker.helpers.arrayElement([
+          'Análise de Documentos Pessoais',
+          'Preenchimento de Formulário',
+          'Consulta sobre Relatórios',
+          'Suporte Técnico',
+          'Análise de Dados',
+          'Exportação de CSV',
+          'Chat sobre Estatísticas',
+          'Ajuda com Sistema'
+        ]),
         metadata: {
           model: faker.helpers.arrayElement(['gpt-4o', 'gpt-3.5-turbo']),
           language: 'pt-BR',
+          category: faker.helpers.arrayElement(['support', 'analysis', 'report', 'form']),
         },
+        createdAt,
+        updatedAt: createdAt,
       };
 
       const [conversation] = await this.db.insert(conversations).values(newConversation).returning();
@@ -124,11 +153,18 @@ export class SeederService {
     const documentIds: string[] = [];
 
     const documentTypes = [
-      { type: 'application/pdf', name: 'documento.pdf' },
-      { type: 'image/jpeg', name: 'foto-documento.jpg' },
-      { type: 'image/png', name: 'screenshot.png' },
-      { type: 'application/pdf', name: 'comprovante.pdf' },
-      { type: 'image/jpeg', name: 'rg-frente.jpg' },
+      { type: 'application/pdf', name: 'rg-completo.pdf', category: 'identidade' },
+      { type: 'image/jpeg', name: 'rg-frente.jpg', category: 'identidade' },
+      { type: 'image/jpeg', name: 'rg-verso.jpg', category: 'identidade' },
+      { type: 'application/pdf', name: 'cpf.pdf', category: 'identidade' },
+      { type: 'image/jpeg', name: 'cnh-frente.jpg', category: 'identidade' },
+      { type: 'application/pdf', name: 'comprovante-residencia.pdf', category: 'endereco' },
+      { type: 'image/jpeg', name: 'conta-luz.jpg', category: 'endereco' },
+      { type: 'application/pdf', name: 'contrato-trabalho.pdf', category: 'profissional' },
+      { type: 'application/pdf', name: 'holerite.pdf', category: 'profissional' },
+      { type: 'application/pdf', name: 'declaracao-ir.pdf', category: 'financeiro' },
+      { type: 'image/png', name: 'cartao-vacina.png', category: 'saude' },
+      { type: 'application/pdf', name: 'certidao-nascimento.pdf', category: 'civil' },
     ];
 
     for (let i = 0; i < count; i++) {
@@ -194,30 +230,61 @@ export class SeederService {
   }
 
   async seedAiLogs(count: number = 50): Promise<void> {
-    const requestTypes = ['chat', 'document_analysis', 'form_fill', 'export'];
+    const requestTypes = [
+      { type: 'chat', weight: 40, avgDuration: 3000, successRate: 95 },
+      { type: 'document_analysis', weight: 30, avgDuration: 8000, successRate: 88 },
+      { type: 'form_fill', weight: 20, avgDuration: 5000, successRate: 92 },
+      { type: 'export', weight: 10, avgDuration: 12000, successRate: 98 }
+    ];
+
+    const models = ['gpt-4o', 'gpt-3.5-turbo'];
     const statuses = ['success', 'error', 'partial'];
 
     for (let i = 0; i < count; i++) {
       const requestType = faker.helpers.arrayElement(requestTypes);
 
+      // Status baseado na taxa de sucesso do tipo de request
+      const isSuccess = faker.number.float() * 100 < requestType.successRate;
+      const status = isSuccess ? 'success' : faker.helpers.arrayElement(['error', 'partial']);
+
+      // Duração baseada no tipo com variação realista
+      const baseDuration = requestType.avgDuration;
+      const duration = faker.number.int({
+        min: Math.floor(baseDuration * 0.5),
+        max: Math.floor(baseDuration * 2)
+      });
+
       const newLog: NewAiLog = {
         sessionId: faker.string.uuid(),
-        requestType,
+        requestType: requestType.type,
         inputData: {
-          type: requestType,
+          type: requestType.type,
           timestamp: faker.date.recent(),
           size: faker.number.int({ min: 100, max: 10000 }),
+          userAgent: faker.internet.userAgent(),
         },
         outputData: {
-          result: 'success',
-          processed: true,
-          confidence: faker.number.float({ min: 0.7, max: 0.99, fractionDigits: 2 }),
+          success: status === 'success',
+          confidence: status === 'success' ?
+            faker.number.float({ min: 0.8, max: 0.99 }) :
+            faker.number.float({ min: 0.3, max: 0.7 }),
+          processingTime: duration,
         },
         model: faker.helpers.arrayElement(['gpt-4o', 'gpt-3.5-turbo']),
-        tokens: faker.number.int({ min: 50, max: 2000 }),
-        duration: faker.number.int({ min: 200, max: 5000 }),
-        status: faker.helpers.arrayElement(statuses),
-        errorMessage: faker.datatype.boolean(0.2) ? faker.lorem.sentence() : null,
+        tokens: faker.number.int({
+          min: requestType.type === 'chat' ? 50 : 200,
+          max: requestType.type === 'export' ? 8000 : 4000
+        }),
+        duration,
+        status,
+        errorMessage: status !== 'success' ?
+          faker.helpers.arrayElement([
+            'Timeout na análise do documento',
+            'Formato de arquivo não suportado',
+            'Erro de conectividade com OpenAI',
+            'Rate limit excedido',
+            'Dados insuficientes para análise'
+          ]) : null,
       };
 
       await this.db.insert(aiLogs).values(newLog);
@@ -229,22 +296,22 @@ export class SeederService {
 
     try {
       console.log('👥 Criando usuários...');
-      const userIds = await this.seedUsers(10);
+      const userIds = await this.seedUsers(200); // Aumento para análises por faixa etária
 
       console.log('💬 Criando conversas...');
-      const conversationIds = await this.seedConversations(userIds, 20);
+      const conversationIds = await this.seedConversations(userIds, 300); // Mais conversas
 
       console.log('📝 Criando mensagens...');
-      await this.seedMessages(conversationIds, 100);
+      await this.seedMessages(conversationIds, 1500); // Mais mensagens para análise
 
       console.log('📄 Criando documentos...');
-      const documentIds = await this.seedDocuments(userIds, 30);
+      const documentIds = await this.seedDocuments(userIds, 250); // Mais documentos processados
 
       console.log('📋 Criando formulários...');
-      await this.seedForms(userIds, documentIds, 15);
+      await this.seedForms(userIds, documentIds, 180); // Mais formulários
 
       console.log('📊 Criando logs de IA...');
-      await this.seedAiLogs(50);
+      await this.seedAiLogs(500); // Mais logs para análise de performance
 
       console.log('✅ Seed concluído com sucesso!');
     } catch (error) {
@@ -275,5 +342,61 @@ export class SeederService {
     digits.push(secondDigit >= 10 ? 0 : secondDigit);
 
     return `${digits.slice(0, 3).join('')}.${digits.slice(3, 6).join('')}.${digits.slice(6, 9).join('')}-${digits.slice(9).join('')}`;
+  }
+
+  private generateRealisticAddress() {
+    // Distribuição realista por estados brasileiros
+    const estados = [
+      { estado: 'SP', cidade: 'São Paulo', peso: 25 },
+      { estado: 'SP', cidade: 'Campinas', peso: 8 },
+      { estado: 'SP', cidade: 'Santos', peso: 7 },
+      { estado: 'RJ', cidade: 'Rio de Janeiro', peso: 15 },
+      { estado: 'RJ', cidade: 'Niterói', peso: 5 },
+      { estado: 'MG', cidade: 'Belo Horizonte', peso: 10 },
+      { estado: 'MG', cidade: 'Uberlândia', peso: 5 },
+      { estado: 'RS', cidade: 'Porto Alegre', peso: 8 },
+      { estado: 'PR', cidade: 'Curitiba', peso: 6 },
+      { estado: 'BA', cidade: 'Salvador', peso: 5 },
+      { estado: 'DF', cidade: 'Brasília', peso: 4 },
+      { estado: 'GO', cidade: 'Goiânia', peso: 2 },
+    ];
+
+    const totalPeso = estados.reduce((sum, e) => sum + e.peso, 0);
+    const random = faker.number.int({ min: 1, max: totalPeso });
+
+    let acumulado = 0;
+    const estadoEscolhido = estados.find(e => {
+      acumulado += e.peso;
+      return random <= acumulado;
+    }) || estados[0];
+
+    // CEPs realistas por estado
+    const cepRanges = {
+      'SP': [1000000, 19999999],
+      'RJ': [20000000, 28999999],
+      'MG': [30000000, 39999999],
+      'RS': [90000000, 99999999],
+      'PR': [80000000, 87999999],
+      'BA': [40000000, 48999999],
+      'DF': [70000000, 72999999],
+      'GO': [72800000, 76999999]
+    };
+
+    const range = cepRanges[estadoEscolhido.estado] || [1000000, 99999999];
+    const cepBase = faker.number.int({ min: range[0], max: range[1] });
+    const cep = cepBase.toString().padStart(8, '0');
+    const cepFormatado = `${cep.slice(0, 5)}-${cep.slice(5, 8)}`;
+
+    return {
+      cep: cepFormatado,
+      endereco: faker.location.streetAddress(),
+      numero: faker.string.numeric({ length: { min: 1, max: 4 } }),
+      bairro: faker.helpers.arrayElement([
+        'Centro', 'Vila Madalena', 'Copacabana', 'Ipanema', 'Savassi',
+        'Batel', 'Moinhos de Vento', 'Asa Norte', 'Jardins', 'Leblon'
+      ]),
+      cidade: estadoEscolhido.cidade,
+      estado: estadoEscolhido.estado,
+    };
   }
 }

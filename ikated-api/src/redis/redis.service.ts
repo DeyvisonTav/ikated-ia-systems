@@ -74,4 +74,16 @@ export class RedisService {
     }
     return baseKey;
   }
+
+  getClient(): Redis {
+    return this.redis;
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    return this.redis.keys(pattern);
+  }
+
+  async ttl(key: string): Promise<number> {
+    return this.redis.ttl(key);
+  }
 }
