@@ -183,7 +183,8 @@ ${response ? `\n${response}` : ''}`.trim();
       if (!latestKey) return null;
 
       const downloadId = latestKey.key.replace('download:', '');
-      return `http://localhost:3333/api/download/${downloadId}`;
+      const port = process.env.PORT || 3333;
+      return `http://localhost:${port}/api/download/${downloadId}`;
     } catch (error) {
       console.error('❌ Erro ao buscar link de download:', error);
       return null;

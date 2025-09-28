@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { MessageCircle, Send, X, Maximize2, Minimize2, Bot, User } from 'lucide-react'
+import { MessageRenderer } from './MessageRenderer'
 
 interface Message {
   id: string
@@ -186,7 +187,7 @@ export function ChatWidget({ onExpand, messages = [], onMessagesUpdate }: ChatWi
                           : 'bg-muted text-foreground'
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <MessageRenderer content={message.content} />
                       <p
                         className={`text-xs mt-1 opacity-70`}
                       >

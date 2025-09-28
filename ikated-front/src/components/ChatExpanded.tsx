@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, X, ArrowLeft, Download, Share, Settings, ExternalLink, Maximize2 } from 'lucide-react'
+import { MessageRenderer } from './MessageRenderer'
 
 interface Message {
   id: string
@@ -236,7 +237,10 @@ export function ChatExpanded({ isOpen, onClose, onMinimize, isPopup = false, onO
                         : 'bg-muted text-foreground'
                         }`}
                     >
-                      <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base">{message.content}</p>
+                      <MessageRenderer
+                        content={message.content}
+                        className="leading-relaxed text-sm sm:text-base"
+                      />
                     </div>
 
                     <p

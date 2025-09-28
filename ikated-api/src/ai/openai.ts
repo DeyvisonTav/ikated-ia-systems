@@ -84,6 +84,42 @@ export class OpenAIService implements AIProvider {
         }))
       });
 
+      // Se há tool results e o texto está vazio, extrair a resposta dos tool results
+      if (result.toolResults && result.toolResults.length > 0 && (!result.text || result.text.trim().length === 0)) {
+        console.log('🔧 Texto vazio, processando tool results...');
+
+        const toolMessages = result.toolResults.map(toolResult => {
+          try {
+            // O toolResult é uma string JSON que contém o objeto completo
+            const toolData = typeof toolResult === 'string' ? JSON.parse(toolResult) : toolResult;
+
+            // Extrair a mensagem do campo output
+            if (toolData?.output?.message) {
+              return toolData.output.message;
+            }
+
+            // Fallback para outras estruturas
+            if (toolData?.message) {
+              return toolData.message;
+            }
+
+            // Se não encontrar mensagem específica, retornar o output completo
+            if (toolData?.output) {
+              return JSON.stringify(toolData.output, null, 2);
+            }
+
+            return JSON.stringify(toolData, null, 2);
+          } catch (error) {
+            console.error('❌ Erro ao processar tool result:', error, toolResult);
+            return 'Erro ao processar resultado da ferramenta';
+          }
+        });
+
+        const finalMessage = toolMessages.join('\n\n');
+        console.log('📤 Resposta final extraída dos tools:', finalMessage);
+        return finalMessage;
+      }
+
       return result.text;
     } catch (error) {
       console.error('❌ Erro no generateText:', error);

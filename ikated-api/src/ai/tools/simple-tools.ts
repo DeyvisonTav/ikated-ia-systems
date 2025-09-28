@@ -158,8 +158,8 @@ ${recentUsers.map(user =>
 
           await writer.writeRecords(records);
 
-          const downloadKey = `download:${path.basename(filePath, '.csv')}`;
-          await redisService.setJson(downloadKey, {
+          const downloadKey = path.basename(filePath, '.csv');
+          await redisService.setJson(`download:${downloadKey}`, {
             filePath,
             filename: csvFilename,
             type: 'csv',
@@ -254,8 +254,8 @@ O arquivo estará disponível por 1 hora.`,
 
           await writer.writeRecords(records);
 
-          const downloadKey = `download:${path.basename(filePath, '.csv')}`;
-          await redisService.setJson(downloadKey, {
+          const downloadKey = path.basename(filePath, '.csv');
+          await redisService.setJson(`download:${downloadKey}`, {
             filePath,
             filename: csvFilename,
             type: 'csv',
@@ -355,8 +355,8 @@ O arquivo estará disponível por 1 hora.`,
 
           await writer.writeRecords(records);
 
-          const downloadKey = `download:${path.basename(filePath, '.csv')}`;
-          await redisService.setJson(downloadKey, {
+          const downloadKey = path.basename(filePath, '.csv');
+          await redisService.setJson(`download:${downloadKey}`, {
             filePath,
             filename: csvFilename,
             type: 'csv',
