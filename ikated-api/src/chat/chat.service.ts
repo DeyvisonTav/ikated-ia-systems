@@ -2,7 +2,12 @@ import { Injectable, Inject } from '@nestjs/common';
 import { OpenAIService } from '../ai/openai';
 import { DATABASE_CONNECTION } from '../database/database.module';
 import { DrizzleDB } from '../database/types';
-import { conversations, messages, NewConversation, NewMessage } from '../database/schema';
+import {
+  conversations,
+  messages,
+  NewConversation,
+  NewMessage,
+} from '../database/schema';
 import { ChatRequestDto, ChatResponseDto } from '../common/dto/chat.dto';
 import { eq } from 'drizzle-orm';
 import { RedisService } from '../redis/redis.service';
@@ -15,13 +20,17 @@ export class ChatService {
     private readonly redisService: RedisService,
   ) {}
 
-  async generateResponse(chatRequest: ChatRequestDto): Promise<ChatResponseDto> {
+  async generateResponse(
+    chatRequest: ChatRequestDto,
+  ): Promise<ChatResponseDto> {
     try {
       let conversationId = chatRequest.conversationId;
 
       if (!conversationId) {
         const newConversation: NewConversation = {
-          title: this.generateConversationTitle(chatRequest.messages[0]?.content),
+          title: this.generateConversationTitle(
+            chatRequest.messages[0]?.content,
+          ),
           metadata: { model: chatRequest.model || 'gpt-4o' },
         };
 
@@ -49,23 +58,32 @@ export class ChatService {
       const response = await Promise.race([
         this.openaiService.generateResponse(chatRequest.messages),
         new Promise<string>((_, reject) =>
-          setTimeout(() => reject(new Error('Chat timeout - operação muito lenta')), 30000)
-        )
+          setTimeout(
+            () => reject(new Error('Chat timeout - operação muito lenta')),
+            30000,
+          ),
+        ),
       ]);
 
       let finalResponse = response;
 
       // Verificar se é comando de CSV e adicionar link se necessário
-      const lastUserMessage = chatRequest.messages[chatRequest.messages.length - 1]?.content?.toLowerCase() || '';
-      if (this.isCsvCommand(lastUserMessage) && (!response || response.trim().length < 50)) {
+      const lastUserMessage =
+        chatRequest.messages[
+          chatRequest.messages.length - 1
+        ]?.content?.toLowerCase() || '';
+      if (
+        this.isCsvCommand(lastUserMessage) &&
+        (!response || response.trim().length < 50)
+      ) {
         console.log('🔗 Comando CSV detectado, buscando link mais recente...');
         const downloadLink = await this.getLatestDownloadLink();
         if (downloadLink) {
-          finalResponse = `📊 **Relatório gerado com sucesso!**
+          finalResponse = `📊 Relatório gerado com sucesso!
 
-🔗 **Download disponível:** ${downloadLink}
+🔗 Download disponível: ${downloadLink}
 
-⏰ **Importante:** O link expira em 1 hora e o arquivo será automaticamente deletado após o download.
+⏰ Importante: O link expira em 1 hora e o arquivo será automaticamente deletado após o download.
 
 ${response ? `\n${response}` : ''}`.trim();
         }
@@ -90,11 +108,15 @@ ${response ? `\n${response}` : ''}`.trim();
     }
   }
 
-  async *generateResponseStream(chatRequest: ChatRequestDto): AsyncIterable<string> {
+  async *generateResponseStream(
+    chatRequest: ChatRequestDto,
+  ): AsyncIterable<string> {
     try {
       let fullResponse = '';
 
-      for await (const chunk of this.openaiService.generateResponseStream(chatRequest.messages)) {
+      for await (const chunk of this.openaiService.generateResponseStream(
+        chatRequest.messages,
+      )) {
         fullResponse += chunk;
         yield chunk;
       }
@@ -103,7 +125,9 @@ ${response ? `\n${response}` : ''}`.trim();
 
       if (!conversationId) {
         const newConversation: NewConversation = {
-          title: this.generateConversationTitle(chatRequest.messages[0]?.content),
+          title: this.generateConversationTitle(
+            chatRequest.messages[0]?.content,
+          ),
           metadata: { model: chatRequest.model || 'gpt-4o' },
         };
 
@@ -128,7 +152,6 @@ ${response ? `\n${response}` : ''}`.trim();
       };
 
       await this.db.insert(messages).values([userMessage, assistantMessage]);
-
     } catch (error) {
       console.error('Erro no chat stream:', error);
       yield 'Erro: Falha ao gerar resposta';
@@ -152,13 +175,25 @@ ${response ? `\n${response}` : ''}`.trim();
 
   private isCsvCommand(message: string): boolean {
     const csvKeywords = [
-      'csv', 'relatório', 'relatorio', 'export', 'exportar',
-      'planilha', 'usuarios', 'usuários', 'conversas',
-      'documentos', 'geografica', 'geográfica', 'distribuição',
-      'distribuicao', 'gerar', 'gere'
+      'csv',
+      'relatório',
+      'relatorio',
+      'export',
+      'exportar',
+      'planilha',
+      'usuarios',
+      'usuários',
+      'conversas',
+      'documentos',
+      'geografica',
+      'geográfica',
+      'distribuição',
+      'distribuicao',
+      'gerar',
+      'gere',
     ];
 
-    return csvKeywords.some(keyword => message.includes(keyword));
+    return csvKeywords.some((keyword) => message.includes(keyword));
   }
 
   private async getLatestDownloadLink(): Promise<string | null> {
@@ -172,12 +207,12 @@ ${response ? `\n${response}` : ''}`.trim();
         keys.map(async (key) => {
           const ttl = await this.redisService.ttl(key);
           return { key, ttl };
-        })
+        }),
       );
 
       // Pegar a chave mais recente (menor TTL = mais nova)
       const latestKey = keysWithTime
-        .filter(item => item.ttl > 0)
+        .filter((item) => item.ttl > 0)
         .sort((a, b) => b.ttl - a.ttl)[0];
 
       if (!latestKey) return null;
