@@ -31,13 +31,13 @@ export function createSimpleTools(db: DrizzleDB, redisService: RedisService) {
               totalDocuments: documentsCount?.count || 0,
               totalForms: formsCount?.count || 0,
             },
-            message: `📊 **Estatísticas do Sistema Ikated**
+            message: `📊 Estatísticas do Sistema Ikated
 
-👥 **Usuários**: ${usersCount?.count || 0}
-💬 **Conversas**: ${conversationsCount?.count || 0}
-📝 **Mensagens**: ${messagesCount?.count || 0}
-📄 **Documentos**: ${documentsCount?.count || 0}
-📋 **Formulários**: ${formsCount?.count || 0}`,
+👥 Usuários: ${usersCount?.count || 0}
+💬 Conversas: ${conversationsCount?.count || 0}
+📝 Mensagens: ${messagesCount?.count || 0}
+📄 Documentos: ${documentsCount?.count || 0}
+📋 Formulários: ${formsCount?.count || 0}`,
           };
         } catch (error) {
           console.error('❌ Erro na tool getSystemStats:', error);
@@ -71,10 +71,10 @@ export function createSimpleTools(db: DrizzleDB, redisService: RedisService) {
           return {
             success: true,
             users: recentUsers,
-            message: `👥 **Usuários Recentes** (${recentUsers.length} encontrados)
+            message: `👥 Usuários Recentes (${recentUsers.length} encontrados)
 
 ${recentUsers.map(user =>
-              `• **${user.name}** (${user.email}) - ${user.createdAt?.toLocaleDateString('pt-BR')}`
+              `• ${user.name} (${user.email}) - ${user.createdAt?.toLocaleDateString('pt-BR')}`
             ).join('\n')}`,
           };
         } catch (error) {
@@ -171,13 +171,13 @@ ${recentUsers.map(user =>
 
           const response = {
             success: true,
-            message: `📊 **Relatório de Usuários Gerado!**
+            message: `📊 Relatório de Usuários Gerado!
 
-✅ **${records.length} usuários** exportados para CSV
-📁 **Arquivo**: ${csvFilename}
-⏰ **Gerado em**: ${new Date().toLocaleString('pt-BR')}
+✅ ${records.length} usuários exportados para CSV
+📁 Arquivo: ${csvFilename}
+⏰ Gerado em: ${new Date().toLocaleString('pt-BR')}
 
-🔗 **Download**: [Clique aqui para baixar](/api/download/${downloadKey})
+🔗 Download: [Clique aqui para baixar](/api/download/${downloadKey})
 
 O arquivo estará disponível por 1 hora.`,
             downloadKey,
@@ -265,13 +265,13 @@ O arquivo estará disponível por 1 hora.`,
 
           return {
             success: true,
-            message: `💬 **Relatório de Conversas Gerado!**
+            message: `💬 Relatório de Conversas Gerado!
 
-✅ **${records.length} conversas** exportadas para CSV
-📁 **Arquivo**: ${csvFilename}
-⏰ **Gerado em**: ${new Date().toLocaleString('pt-BR')}
+✅ ${records.length} conversas exportadas para CSV
+📁 Arquivo: ${csvFilename}
+⏰ Gerado em: ${new Date().toLocaleString('pt-BR')}
 
-🔗 **Download**: [Clique aqui para baixar](/api/download/${downloadKey})
+🔗 Download: [Clique aqui para baixar](/api/download/${downloadKey})
 
 O arquivo estará disponível por 1 hora.`,
             downloadKey,
@@ -366,13 +366,13 @@ O arquivo estará disponível por 1 hora.`,
 
           return {
             success: true,
-            message: `📄 **Relatório de Documentos Gerado!**
+            message: `📄 Relatório de Documentos Gerado!
 
-✅ **${records.length} documentos** exportados para CSV
-📁 **Arquivo**: ${csvFilename}
-⏰ **Gerado em**: ${new Date().toLocaleString('pt-BR')}
+✅ ${records.length} documentos exportados para CSV
+📁 Arquivo: ${csvFilename}
+⏰ Gerado em: ${new Date().toLocaleString('pt-BR')}
 
-🔗 **Download**: [Clique aqui para baixar](/api/download/${downloadKey})
+🔗 Download: [Clique aqui para baixar](/api/download/${downloadKey})
 
 O arquivo estará disponível por 1 hora.`,
             downloadKey,
@@ -492,20 +492,20 @@ O arquivo estará disponível por 1 hora.`,
 
           return {
             success: true,
-            message: `🗺️ **Distribuição Geográfica - ${groupBy === 'estado' ? 'Por Estado' : 'Por Cidade'}**
+            message: `🗺️ Distribuição Geográfica - ${groupBy === 'estado' ? 'Por Estado' : 'Por Cidade'}
 
-✅ **${finalData.length} registros** exportados para CSV
-📁 **Arquivo**: ${csvFilename}
-⏰ **Gerado em**: ${new Date().toLocaleString('pt-BR')}
+✅ ${finalData.length} registros exportados para CSV
+📁 Arquivo: ${csvFilename}
+⏰ Gerado em: ${new Date().toLocaleString('pt-BR')}
 
-📊 **Top 5 ${groupBy === 'estado' ? 'Estados' : 'Cidades'}**:
+📊 Top 5 ${groupBy === 'estado' ? 'Estados' : 'Cidades'}:
 ${finalData.slice(0, 5).map((item: any, index) =>
               groupBy === 'estado' ?
-                `${index + 1}. **${item.estado}**: ${item.total_usuarios} usuários` :
-                `${index + 1}. **${item.cidade}/${item.estado}**: ${item.total_usuarios} usuários`
+                `${index + 1}. ${item.estado}: ${item.total_usuarios} usuários` :
+                `${index + 1}. ${item.cidade}/${item.estado}: ${item.total_usuarios} usuários`
             ).join('\n')}
 
-🔗 **Download**: [Clique aqui para baixar](/api/download/${downloadKey})
+🔗 Download: [Clique aqui para baixar](/api/download/${downloadKey})
 
 O arquivo estará disponível por 1 hora.`,
             downloadKey,
